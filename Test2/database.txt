@@ -1,0 +1,2 @@
+>hsa:123123 aaa
+ATGCATCCCATGAC

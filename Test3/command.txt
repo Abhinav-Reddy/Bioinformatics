@@ -1,0 +1,1 @@
+3 Test3\\query.txt Test3\\database.txt Test3\\alphabet.txt Test3\\scoringmatrix.txt 1 -2
