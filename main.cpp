@@ -4,7 +4,9 @@
 #include <stdlib.h>
 #include <vector>
 #include <map>
+#include <algorithm>
 #include <ctime>
+#include <string>
 
 using namespace std;
 vector< pair<string, string> > queries;
@@ -21,18 +23,10 @@ class AlignmentResult {
 	string ids[2];
 	int startPos[2];
 	string sequence[2];
-	void operator= (const AlignmentResult& c) {
-		startPos[0] = c.startPos[0];
-		startPos[1] = c.startPos[1];
-		
-		sequence[0] = c.sequence[0];
-		sequence[1] = c.sequence[1];
-		
-		score = c.score;
-	}
 };
 
-void readSequencesFromFile(char* fileName, vector< pair<string, string> >& dest) {
+vector< pair<string, string> > readSequencesFromFile(char* fileName) {
+	vector< pair<string, string> > dest;
 	ifstream in(fileName);
 	string input;
 	string sequence = "";
@@ -43,6 +37,7 @@ void readSequencesFromFile(char* fileName, vector< pair<string, string> >& dest)
 				dest.push_back( make_pair(id, sequence) );
 				id = "";
 				sequence = "";
+				
 			}
 			
 			int i;
@@ -53,7 +48,9 @@ void readSequencesFromFile(char* fileName, vector< pair<string, string> >& dest)
 			sequence.append(input); 
 		}
 	}
+	
 	dest.push_back( make_pair(id, sequence) );
+	return dest;
 }
 
 
@@ -62,8 +59,11 @@ void parseAlphabets(char* fileName) {
 	getline(in, alphabets);
 	for (int i=0;i<256;i++)
 		mapAlphabets[i]=-1;
-	for (int i=0;i<alphabets.length();i++)
+	for (int i=0;i<alphabets.length();i++) {
 		mapAlphabets[alphabets[i]] = i;
+		mapAlphabets[alphabets[i]+32] = i;
+		mapAlphabets[alphabets[i]-32] = i;
+	}
 }
 
 
@@ -71,16 +71,26 @@ void parseScoreMatrix(char* fileName) {
 	ifstream in(fileName);
 	int tmp;
 	for (int i=0;i<alphabets.length();i++) {
+		score.push_back(vector<int>(alphabets.size()));
 		for (int j=0;j<alphabets.length();j++) {
-			cin >> tmp;
+			in >> tmp;
 			score[i][j] = tmp;
 		}
 	}
+	
 }
 
 
-AlignmentResult getAlignmentResult(vector < vector<int> >& dp, vector < vector<int> >& prev, int row, int col, string a, string b) {
-	AlignmentResult res;
+void debugOutput(vector < vector<int> >& dp, AlignmentResult& res) {
+	for (int i=0;i<dp.size();i++) {
+		for (int j=0;j<dp[0].size();j++)
+			cout<<dp[i][j]<<" ";
+		cout<<endl;
+	}
+}
+
+void getAlignmentResult(vector < vector<int> >& dp, vector < vector<int> >& prev,
+									int row, int col, string& a, string& b, AlignmentResult& res) {
 	res.sequence[0] = "";
 	res.sequence[1] = "";
 	res.score = dp[row][col];
@@ -88,38 +98,32 @@ AlignmentResult getAlignmentResult(vector < vector<int> >& dp, vector < vector<i
 		int r = prev[row][col]/(b.size()+1);
 		int c = prev[row][col]%(b.size()+1);
 		if (r == row-1 && c == col-1) {
-			res.sequence[0].push_back(a[row]);
-			res.sequence[1].push_back(b[col]);
+			res.sequence[0].push_back(a[row-1]);
+			res.sequence[1].push_back(b[col-1]);
 		}
-		else if (r == row-1) {
+		else if (r == row) {
 			res.sequence[0].push_back('.');
-			res.sequence[1].push_back(b[col]);
+			res.sequence[1].push_back(b[col-1]);
 		}
 		else {
-			res.sequence[0].push_back(a[row]);
+			res.sequence[0].push_back(a[row-1]);
 			res.sequence[1].push_back('.');
 		}
 		row = r;
 		col = c;
 	}
+	reverse(res.sequence[0].begin(), res.sequence[0].end());
+	reverse(res.sequence[1].begin(), res.sequence[1].end());
 	res.startPos[0] = row;
 	res.startPos[1] = col;
-	return res;
+	//debugOutput(dp, res);
+	dp.clear();
+	prev.clear();
 }
 
 
 void intializeTables(vector < vector<int> >& dp, vector < vector<int> >& prev, int row, int col) {
-	for (int i=0;i<row;i++) {
-		dp.push_back(vector<int>(col));
-		prev.push_back(vector<int>(col));
-		dp[i][0] = dp[i-1][0] + gapPenality;
-		prev[i][0] = -1;
-	}
-	
-	for (int i=1;i<col;i++) {
-		dp[0][i] = 0;
-		prev[0][i] = -1;
-	} 
+	 
 }
 
 void getMaxNeighbor(int &p, int& q, int& val, int i, int j, string& a, string& b, vector< vector<int> >& dp) {
@@ -129,17 +133,18 @@ void getMaxNeighbor(int &p, int& q, int& val, int i, int j, string& a, string& b
 	if (val < dp[i-1][j]+gapPenality) {
 		val = dp[i-1][j]+gapPenality;
 		p = i-1;
+		q = j;
 	}
-	
 	if (val < dp[i][j-1]+gapPenality) {
 		val = dp[i][j-1]+gapPenality;
+		p = i;
 		q = j-1;
 	}
 }
 
-AlignmentResult getGlobalAlignment(string a, string b) {
-	int row = a.size()+1;
-	int col = b.size()+1;
+void getGlobalAlignment(string& a, string& b, AlignmentResult& res) {
+	int row = a.length()+1;
+	int col = b.length()+1;
 	vector < vector<int> >dp;
 	vector < vector<int> > prev;
 	dp.push_back(vector<int>(col));
@@ -158,6 +163,7 @@ AlignmentResult getGlobalAlignment(string a, string b) {
 		prev[0][i] = i-1;
 	}
 	
+	
 	for (int i=1;i<row;i++) {
 		for (int j=1;j<col;j++) {
 			int p, q, val;
@@ -166,41 +172,68 @@ AlignmentResult getGlobalAlignment(string a, string b) {
 			prev[i][j] = p*col+q;
 		}
 	}
-	getAlignmentResult(dp, prev, row-1, col-1, a, b);
+	getAlignmentResult(dp, prev, row-1, col-1, a, b, res);
 }
 
 
 
-AlignmentResult getLocalAlignment(string a, string b) {
+void getLocalAlignment(string a, string b, AlignmentResult& res) {
+	int mx[2];
 	int row = a.size()+1;
 	int col = b.size()+1;
 	vector < vector<int> >dp;
 	vector < vector<int> > prev;
-	intializeTables(dp, prev, row, col);
+	for (int i=0;i<row;i++) {
+		dp.push_back(vector<int>(col));
+		prev.push_back(vector<int>(col));
+		dp[i][0] = 0;
+		prev[i][0] = -1;
+	}
+	
+	for (int i=1;i<col;i++) {
+		dp[0][i] = 0;
+		prev[0][i] = -1;
+	}
+	mx[0] = mx[1] = 0;
 	for (int i=1;i<row;i++) {
 		for (int j=1;j<col;j++) {
 			int p, q, val;
 			getMaxNeighbor(p, q, val, i, j, a, b, dp);
 			
-			dp[i][j] = val;
 			if (val <= 0) {
+				dp[i][j] = 0;
 				prev[i][j] = -1;
 			}
 			else {
+				dp[i][j] = val;
 				prev[i][j] = p*col+q;
+			}
+			if (dp[mx[0]][mx[1]] < dp[i][j]) {
+				mx[0] = i;
+				mx[1] = j;
 			}
 		}
 	}
-	getAlignmentResult(dp, prev, row-1, col-1, a, b);
+	getAlignmentResult(dp, prev, mx[0], mx[1], a, b, res);
 }
 
-AlignmentResult getEndSpaceAlignment(string a, string b) {
+void getEndSpaceAlignment(string a, string b, AlignmentResult& res) {
 	int row = a.size()+1;
 	int col = b.size()+1;
+	
 	vector < vector<int> >dp;
 	vector < vector<int> > prev;
+	for (int i=0;i<row;i++) {
+		dp.push_back(vector<int>(col));
+		prev.push_back(vector<int>(col));
+		dp[i][0] = 0;
+		prev[i][0] = -1;
+	}
 	
-	intializeTables(dp, prev, row, col);
+	for (int i=1;i<col;i++) {
+		dp[0][i] = 0;
+		prev[0][i] = -1;
+	}
 	
 	for (int i=1;i<row;i++) {
 		for (int j=1;j<col;j++) {
@@ -211,7 +244,7 @@ AlignmentResult getEndSpaceAlignment(string a, string b) {
 			prev[i][j] = p*col+q;
 		}
 	}
-	getAlignmentResult(dp, prev, row-1, col-1, a, b);
+	getAlignmentResult(dp, prev, row-1, col-1, a, b, res);
 }
 
 void topKalignments(int alignmentMethod) {
@@ -222,12 +255,19 @@ void topKalignments(int alignmentMethod) {
 		for (int j=0;j<database.size();j++) {
 			AlignmentResult tmp;
 			if (alignmentMethod == 1)
-				tmp = getGlobalAlignment(queries[i].second, database[i].second);
+				getGlobalAlignment(queries[i].second, database[j].second, tmp);
 			else if (alignmentMethod == 2)
-				tmp = getLocalAlignment(queries[i].second, database[i].second);
-			else
-				tmp = getEndSpaceAlignment(queries[i].second, database[i].second);
-			tmp.ids[1] = database[i].first;
+				getLocalAlignment(queries[i].second, database[j].second, tmp);
+			else {
+				getEndSpaceAlignment(queries[i].second, database[j].second, tmp);
+				int tmpLen  = tmp.sequence[0].length() - 1;
+				while ( tmpLen >= 0 && (tmp.sequence[0][tmpLen] == '.' || tmp.sequence[1][tmpLen] == '.') ) {
+					tmp.sequence[0].erase(tmpLen);
+					tmp.sequence[1].erase(tmpLen);
+					tmpLen--;
+				}
+			}
+			tmp.ids[1] = database[j].first;
 			tmp.ids[0] = queries[i].first;
 			mp[tmp.score].push_back(tmp);
 		}
@@ -247,18 +287,35 @@ void topKalignments(int alignmentMethod) {
 }
 
 
+void cleanSequences() {
+	for (int i=0;i<queries.size();i++) {
+		for (int j=0;j<queries[i].second.length();j++) {
+			if (mapAlphabets[queries[i].second[j]] == -1)
+				queries[i].second.erase(j);
+		}
+	}
+	
+	for (int i=0;i<database.size();i++) {
+		for (int j=0;j<database[i].second.length();j++) {
+			if (mapAlphabets[database[i].second[j]] == -1)
+				database[i].second.erase(j);
+		}
+	}
+}
+
 int main(int argc, char *argv[]) {
 	if (argc != 8) {
 		cout<<"Invalid input"<<endl;
 		return 0;
 	}
 	
-	readSequencesFromFile(argv[2], queries);
-	readSequencesFromFile(argv[3], database);
+	queries = readSequencesFromFile(argv[2]);
+	database = readSequencesFromFile(argv[3]);
 	parseAlphabets(argv[4]);
 	parseScoreMatrix(argv[5]);
 	neighbors = atoi(argv[6]);
 	gapPenality = atoi(argv[7]);
-	topKalignments(atoi(argv[0]));
+	cleanSequences();
+	topKalignments(atoi(argv[1]));
     return 0;
 }    
