@@ -178,7 +178,6 @@ void getGlobalAlignment(string& a, string& b, AlignmentResult& res) {
 
 
 void getLocalAlignment(string a, string b, AlignmentResult& res) {
-	int mx[2];
 	int row = a.size()+1;
 	int col = b.size()+1;
 	vector < vector<int> >dp;
@@ -194,6 +193,7 @@ void getLocalAlignment(string a, string b, AlignmentResult& res) {
 		dp[0][i] = 0;
 		prev[0][i] = -1;
 	}
+	int mx[2];
 	mx[0] = mx[1] = 0;
 	for (int i=1;i<row;i++) {
 		for (int j=1;j<col;j++) {
@@ -244,7 +244,20 @@ void getEndSpaceAlignment(string a, string b, AlignmentResult& res) {
 			prev[i][j] = p*col+q;
 		}
 	}
-	getAlignmentResult(dp, prev, row-1, col-1, a, b, res);
+	int mx[2];
+	mx[0] = mx[1] = 0;
+	for (int i=1;i<row;i++)
+		if (dp[mx[0]][mx[1]] < dp[i][col-1]) {
+			mx[0] = i;
+			mx[1] = col-1;
+		}
+		
+	for (int i=1;i<col;i++)
+		if (dp[mx[0]][mx[1]] < dp[row-1][i]) {
+			mx[0] = row-1;
+			mx[1] = i;
+		}
+	getAlignmentResult(dp, prev, mx[0], mx[1], a, b, res);
 }
 
 void topKalignments(int alignmentMethod) {
@@ -260,22 +273,17 @@ void topKalignments(int alignmentMethod) {
 				getLocalAlignment(queries[i].second, database[j].second, tmp);
 			else {
 				getEndSpaceAlignment(queries[i].second, database[j].second, tmp);
-				int tmpLen  = tmp.sequence[0].length() - 1;
-				while ( tmpLen >= 0 && (tmp.sequence[0][tmpLen] == '.' || tmp.sequence[1][tmpLen] == '.') ) {
-					tmp.sequence[0].erase(tmpLen);
-					tmp.sequence[1].erase(tmpLen);
-					tmpLen--;
-				}
 			}
 			tmp.ids[1] = database[j].first;
 			tmp.ids[0] = queries[i].first;
+			//cout<<tmp.score<<endl;
 			mp[tmp.score].push_back(tmp);
 		}
 		start_s = (clock() - start_s)/double(CLOCKS_PER_SEC)*1000;
 		execMap[queries[i].second.length()].push_back(start_s);
 	}
 	int cnt = 0;
-	for (map<int, vector<AlignmentResult> >::iterator itr=mp.begin(); itr!= mp.end() && cnt < neighbors;itr++) {
+	for (map<int, vector<AlignmentResult> >::reverse_iterator  itr=mp.rbegin(); itr!= mp.rend() && cnt < neighbors;itr++) {
 		for (int i=0;i<itr->second.size() && cnt < neighbors; i++) {
 			cnt++;
 			AlignmentResult tmp = itr->second[i];

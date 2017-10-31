@@ -1,0 +1,1 @@
+1 query.txt database.txt alphabet.txt scoringmatrix.txt 10 -3
